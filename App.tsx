@@ -6,7 +6,7 @@ import Experience from './components/Experience';
 import UI from './components/UI';
 
 export type AppTheme = 'orange' | 'light' | 'dark';
-export type AppView = 'landing' | 'ecosystem' | 'network' | 'partners' | 'investors';
+export type AppView = 'landing' | 'ecosystem' | 'network' | 'partners' | 'investors' | 'app';
 
 const getInitialView = (): AppView => {
   if (typeof window === 'undefined') return 'landing';
@@ -25,6 +25,9 @@ const getInitialView = (): AppView => {
   if (path.includes('investors') || hash.includes('investors')) {
     return 'investors';
   }
+  if (path === '/app' || path.startsWith('/app/') || hash === '#app') {
+    return 'app';
+  }
   return 'landing';
 };
 
@@ -42,6 +45,7 @@ const App: React.FC = () => {
       else if (newView === 'ecosystem') targetPath = '/ecosystem';
       else if (newView === 'network') targetPath = '/network';
       else if (newView === 'investors') targetPath = '/investors';
+      else if (newView === 'app') targetPath = '/app';
 
       if (window.location.pathname !== targetPath) {
         window.history.pushState({ view: newView }, '', targetPath);

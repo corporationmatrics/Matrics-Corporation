@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, ArrowRight, Store, Building2, Factory, Truck, Landmark, Sparkles } from 'lucide-react';
 import type { AppTheme } from '../App';
+import { LEAD_CONSENT_LABEL, submitLead } from '../lib/api';
 
 interface EarlyAccessModalProps {
   isOpen: boolean;
@@ -20,10 +21,13 @@ const EarlyAccessModal: React.FC<EarlyAccessModalProps> = ({ isOpen, onClose, th
   });
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [consent, setConsent] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+  const [sending, setSending] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.phone.trim() || !formData.town.trim()) {
       setError('Please fill in all required fields.');
@@ -33,8 +37,24 @@ const EarlyAccessModal: React.FC<EarlyAccessModalProps> = ({ isOpen, onClose, th
       setError('Please enter a valid 10-digit mobile number.');
       return;
     }
+    if (!consent) {
+      setError('Please tick the consent box so we can contact you.');
+      return;
+    }
     setError('');
-    setSubmitted(true);
+    setSending(true);
+    const failure = await submitLead({
+      kind: 'EARLY_ACCESS',
+      name: formData.name,
+      phone: formData.phone,
+      town: formData.town,
+      organisation: formData.businessType,
+      consent,
+      website: honeypot,
+    });
+    setSending(false);
+    if (failure) setError(failure);
+    else setSubmitted(true);
   };
 
   const handleReset = () => {
@@ -207,10 +227,20 @@ const EarlyAccessModal: React.FC<EarlyAccessModalProps> = ({ isOpen, onClose, th
                 </p>
               </div>
 
+              {/* Honeypot for bots — hidden from people and screen readers */}
+              <input type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)} className="hidden" name="website" />
+
+              <label className={`flex items-start gap-2 text-[11px] leading-snug ${isLight ? 'text-slate-600' : 'text-white/70'}`}>
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-[#db5319]" />
+                <span>{LEAD_CONSENT_LABEL}</span>
+              </label>
+
               <div className="pt-2">
                 <button
                   type="submit"
-                  className={`w-full py-3.5 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-2 shadow-lg ${
+                  disabled={sending}
+                  className={`w-full py-3.5 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-2 shadow-lg disabled:opacity-60 ${
                     isOrange
                       ? 'bg-white text-[#d85104] hover:bg-white/95 shadow-orange-950/40'
                       : isLight
@@ -218,7 +248,7 @@ const EarlyAccessModal: React.FC<EarlyAccessModalProps> = ({ isOpen, onClose, th
                         : 'bg-white text-black hover:bg-slate-100'
                   }`}
                 >
-                  <span>Submit Early Access Request</span>
+                  <span>{sending ? 'Sending…' : 'Submit Early Access Request'}</span>
                   <ArrowRight size={14} />
                 </button>
               </div>

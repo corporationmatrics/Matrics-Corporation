@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Sun, 
   Zap, 
@@ -22,13 +22,15 @@ import {
   Clock
 } from 'lucide-react';
 import type { AppTheme } from '../App';
+import { FALLBACK_SUBSIDY, fetchSubsidy, inr, LEAD_CONSENT_LABEL, submitLead, type SubsidyRow } from '../lib/api';
 
 interface PartnersSolarProps {
   theme?: AppTheme;
   onOpenEarlyAccess: () => void;
+  onOpenPartnerLogin?: () => void;
 }
 
-const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenEarlyAccess }) => {
+const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenEarlyAccess, onOpenPartnerLogin }) => {
   const isLight = theme === 'light';
   const isOrange = theme === 'orange';
 
@@ -41,6 +43,13 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
     propertyType: 'Commercial Kirana / Warehouse',
   });
   const [surveySubmitted, setSurveySubmitted] = useState(false);
+  const [consent, setConsent] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+  const [sending, setSending] = useState(false);
+  const [surveyError, setSurveyError] = useState('');
+  // Live PM Surya Ghar + CG top-up figures from the Tarang app's settings.
+  const [homeSubsidy, setHomeSubsidy] = useState<SubsidyRow[]>(FALLBACK_SUBSIDY);
+  useEffect(() => { fetchSubsidy().then(setHomeSubsidy); }, []);
 
   const solarJourney = [
     {
@@ -80,45 +89,32 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
     },
   ];
 
-  const subsidyData = [
-    {
-      capacity: '1 kW System',
-      cost: '₹65,000 – ₹75,000',
-      subsidy: '₹30,000',
-      effectiveCost: '₹35,000 – ₹45,000',
-      units: '~120 – 150 kWh',
-      savings: '₹900 – ₹1,200 / mo',
-    },
-    {
-      capacity: '2 kW System',
-      cost: '₹1,25,000 – ₹1,40,000',
-      subsidy: '₹60,000',
-      effectiveCost: '₹65,000 – ₹80,000',
-      units: '~240 – 300 kWh',
-      savings: '₹1,800 – ₹2,400 / mo',
-    },
-    {
-      capacity: '3 kW System (Most Popular)',
-      cost: '₹1,80,000 – ₹2,05,000',
-      subsidy: '₹78,000 (Max Central)',
-      effectiveCost: '₹1,02,000 – ₹1,27,000',
-      units: '~360 – 450 kWh',
-      savings: '₹2,800 – ₹3,600 / mo',
-    },
-    {
-      capacity: 'Commercial & Industrial (>10 kW)',
-      cost: 'Custom EPC Pricing',
-      subsidy: '40% Accelerated Depreciation',
-      effectiveCost: 'Tax Shield + CapEx Loan',
-      units: '1,400+ kWh / 10 kW',
-      savings: 'Up to 70% energy bill reduction',
-    },
-  ];
+  // Illustrative benchmark costs and generation for homes (PM Surya Ghar applies to residential only).
+  const homeBenchmarks: Record<number, { cost: [number, number]; units: string; savings: string }> = {
+    1: { cost: [65000, 75000], units: '~120 – 150 kWh', savings: '₹900 – ₹1,200 / mo' },
+    2: { cost: [125000, 140000], units: '~240 – 300 kWh', savings: '₹1,800 – ₹2,400 / mo' },
+    3: { cost: [180000, 205000], units: '~360 – 450 kWh', savings: '₹2,800 – ₹3,600 / mo' },
+  };
 
-  const handleSurveySubmit = (e: React.FormEvent) => {
+  const handleSurveySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!surveyData.name.trim() || !surveyData.phone.trim()) return;
-    setSurveySubmitted(true);
+    if (!consent) { setSurveyError('Please tick the consent box so our engineer can call you.'); return; }
+    setSurveyError('');
+    setSending(true);
+    const failure = await submitLead({
+      kind: 'SOLAR_AUDIT',
+      name: surveyData.name,
+      phone: surveyData.phone,
+      town: surveyData.town,
+      billRange: surveyData.billRange,
+      propertyType: surveyData.propertyType,
+      consent,
+      website: honeypot,
+    });
+    setSending(false);
+    if (failure) setSurveyError(failure);
+    else setSurveySubmitted(true);
   };
 
   return (
@@ -146,7 +142,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
         <p className={`text-sm sm:text-base max-w-2xl mx-auto leading-relaxed ${
           isLight ? 'text-slate-500' : 'text-white/70'
         }`}>
-          Accelerating rooftop solar adoption for warehouses, cold chains, small factories, and retail kirana networks across Central India with end-to-end subsidy processing and smart energy monitoring.
+          Rooftop solar for homes (with the PM Surya Ghar subsidy and the Chhattisgarh state top-up) and for shops, warehouses, cold rooms and small factories across Central India — with end-to-end paperwork and DISCOM liaison.
         </p>
 
         <div className="pt-2 flex flex-wrap items-center justify-center gap-4">
@@ -173,6 +169,35 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
             View Subsidy Table
           </a>
         </div>
+
+        {onOpenPartnerLogin && (
+          <div className={`mx-auto max-w-xl flex flex-col sm:flex-row items-center justify-between gap-4 p-4 sm:p-5 rounded-xl border text-left ${
+            isLight
+              ? 'bg-white/90 border-slate-200 shadow-lg'
+              : isOrange
+                ? 'bg-stone-950/75 border-amber-500/30 shadow-2xl'
+                : 'bg-zinc-950/80 border-white/10'
+          }`}>
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2 text-[10px] font-mono uppercase tracking-[0.25em] text-[#db5319] font-bold">
+                <ShieldCheck size={12} />
+                <span>Tarang Solar Web Portal · Trial</span>
+              </div>
+              <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-white/70'}`}>
+                Staff, channel partners and their executives — sign in to manage cases, documents and follow-ups.
+              </p>
+            </div>
+            <button
+              onClick={onOpenPartnerLogin}
+              className={`shrink-0 inline-flex items-center space-x-2 px-6 py-3 rounded-lg text-xs font-black uppercase tracking-widest transition-all shadow-md ${
+                isLight ? 'bg-slate-900 text-white hover:bg-slate-800' : 'bg-[#db5319] text-white hover:bg-[#c24610]'
+              }`}
+            >
+              <span>Partner Login</span>
+              <ArrowRight size={12} />
+            </button>
+          </div>
+        )}
       </section>
 
       {/* About Tarang Solar */}
@@ -196,7 +221,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 Tarang Solar is an engineering-driven solar solution provider operating extensively across Chhattisgarh and Central India. Dedicated to decarbonizing commercial supply chains, Tarang designs, permits, installs, and maintains high-yield rooftop solar power plants.
               </p>
               <p className={`text-xs sm:text-sm leading-relaxed ${isLight ? 'text-slate-600' : 'text-white/75'}`}>
-                By combining MNRE Tier-1 photovoltaic technology with direct National Portal subsidy liaison, Tarang enables kirana stores, cold storage facilities, and logistics depots to slash monthly electricity expenditures by up to 90% while locking in predictable energy tariffs for 25 years.
+                Using ALMM-listed (MNRE-approved) modules and handling the National Portal and CSPDCL paperwork for you, Tarang helps homes and businesses cut monthly electricity bills substantially and lock in predictable energy costs for the 25-year life of the panels.
               </p>
 
               <div className="pt-2 grid grid-cols-2 sm:grid-cols-3 gap-3 text-left">
@@ -209,8 +234,8 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                   <div className="text-sm font-black mt-0.5">25-Yr Performance</div>
                 </div>
                 <div className={`p-3 rounded-lg border ${isLight ? 'border-slate-200 bg-slate-50' : 'border-white/10 bg-white/5'}`}>
-                  <div className="text-[9px] font-mono text-[#db5319] font-bold">DISCOM APPROVED</div>
-                  <div className="text-sm font-black mt-0.5">100% Net-Metered</div>
+                  <div className="text-[9px] font-mono text-[#db5319] font-bold">DISCOM LIAISON</div>
+                  <div className="text-sm font-black mt-0.5">Net-metering handled</div>
                 </div>
               </div>
             </div>
@@ -235,9 +260,9 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                   <div className="text-[10px] opacity-60 mt-0.5">After central subsidies & tax incentives</div>
                 </div>
                 <div>
-                  <div className="text-[9px] uppercase tracking-widest font-bold opacity-60">Grid Outage Mitigation</div>
-                  <div className="text-2xl sm:text-3xl font-black italic">Zero Spoilage</div>
-                  <div className="text-[10px] opacity-60 mt-0.5">Hybrid battery storage keeps chillers running</div>
+                  <div className="text-[9px] uppercase tracking-widest font-bold opacity-60">Grid Outage Backup</div>
+                  <div className="text-2xl sm:text-3xl font-black italic">Optional Hybrid</div>
+                  <div className="text-[10px] opacity-60 mt-0.5">Battery-backed systems can keep essential loads such as chillers running during outages</div>
                 </div>
               </div>
             </div>
@@ -299,7 +324,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
         </div>
       </section>
 
-      {/* Subsidy Table (PM Surya Ghar) */}
+      {/* Subsidy: homes (PM Surya Ghar + CG top-up, live) and businesses (no PMSG subsidy) */}
       <section id="subsidy-breakdown" className="px-4 sm:px-8 lg:px-16 max-w-6xl mx-auto space-y-6">
         <div className="text-center space-y-2">
           <div className="text-[10px] font-mono uppercase tracking-[0.3em] text-[#db5319] font-black">
@@ -308,56 +333,77 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
           <h2 className={`text-3xl sm:text-4xl font-black italic uppercase tracking-tight ${
             isLight ? 'text-slate-900' : 'text-white'
           }`}>
-            Subsidy & Benchmark Pricing Table
+            Subsidy & Benchmark Pricing
           </h2>
           <p className={`text-xs sm:text-sm max-w-xl mx-auto ${
             isLight ? 'text-slate-500' : 'text-white/60'
           }`}>
-            Central financial assistance under PM Surya Ghar: Muft Bijli Yojana & commercial incentives.
+            PM Surya Ghar: Muft Bijli Yojana subsidy is for homes (residential connections). In Chhattisgarh the state adds a top-up on top of the central amount.
           </p>
         </div>
 
+        <h3 className={`text-sm font-black uppercase tracking-widest ${isLight ? 'text-slate-800' : 'text-white'}`}>For homes — central + Chhattisgarh subsidy</h3>
         <div className={`rounded-xl border overflow-x-auto shadow-xl ${
           isLight ? 'bg-white border-slate-200' : 'bg-stone-950/80 border-white/10 text-white'
         }`}>
-          <table className="w-full text-left text-xs border-collapse min-w-[640px]">
+          <table className="w-full text-left text-xs border-collapse min-w-[720px]">
             <thead>
               <tr className={`border-b text-[10px] font-mono uppercase font-black tracking-widest ${
                 isLight ? 'bg-slate-100/80 text-slate-700 border-slate-200' : 'bg-white/5 text-white/80 border-white/10'
               }`}>
-                <th className="p-4">System Tier</th>
-                <th className="p-4">Benchmark Cost</th>
-                <th className="p-4 text-[#db5319]">Central Subsidy</th>
-                <th className="p-4">Net Customer Cost</th>
-                <th className="p-4">Est. Generation</th>
-                <th className="p-4">Monthly Savings</th>
+                <th className="p-4">System</th>
+                <th className="p-4">Benchmark cost*</th>
+                <th className="p-4 text-[#db5319]">Central subsidy</th>
+                <th className="p-4 text-[#db5319]">CG state top-up</th>
+                <th className="p-4 text-[#db5319]">Total subsidy</th>
+                <th className="p-4">Net cost after subsidy*</th>
+                <th className="p-4">Est. monthly savings*</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10 font-medium">
-              {subsidyData.map((row, i) => (
-                <tr 
-                  key={i} 
-                  className={`transition-colors ${
-                    i === 2 
-                      ? isLight ? 'bg-orange-50/50 font-semibold' : 'bg-[#db5319]/10 font-semibold'
-                      : isLight ? 'hover:bg-slate-50' : 'hover:bg-white/[0.02]'
-                  }`}
-                >
-                  <td className="p-4 font-bold">{row.capacity}</td>
-                  <td className="p-4 font-mono text-xs">{row.cost}</td>
-                  <td className="p-4 font-mono font-bold text-[#db5319]">{row.subsidy}</td>
-                  <td className="p-4 font-mono text-xs">{row.effectiveCost}</td>
-                  <td className="p-4 font-mono text-xs">{row.units}</td>
-                  <td className="p-4 font-mono font-bold text-emerald-500">{row.savings}</td>
-                </tr>
-              ))}
+              {homeSubsidy.map((row) => {
+                const b = homeBenchmarks[row.kw];
+                const popular = row.kw === 3;
+                return (
+                  <tr key={row.kw} className={popular ? (isLight ? 'bg-orange-50/50 font-semibold' : 'bg-[#db5319]/10 font-semibold') : ''}>
+                    <td className="p-4 font-bold">{row.kw} kW{popular ? ' (most popular)' : ''}</td>
+                    <td className="p-4 font-mono">{b ? `${inr(b.cost[0])} – ${inr(b.cost[1])}` : '—'}</td>
+                    <td className="p-4 font-mono font-bold text-[#db5319]">{inr(row.central)}</td>
+                    <td className="p-4 font-mono font-bold text-[#db5319]">{inr(row.state)}</td>
+                    <td className="p-4 font-mono font-black text-[#db5319]">{inr(row.total)}</td>
+                    <td className="p-4 font-mono">{b ? `${inr(Math.max(0, b.cost[0] - row.total))} – ${inr(Math.max(0, b.cost[1] - row.total))}` : '—'}</td>
+                    <td className="p-4 font-mono font-bold text-emerald-500">{b?.savings ?? '—'}</td>
+                  </tr>
+                );
+              })}
+              <tr>
+                <td className="p-4 font-bold">Above 3 kW (up to 10 kW)</td>
+                <td className="p-4 font-mono">On quotation</td>
+                <td className="p-4 font-mono font-bold text-[#db5319]" colSpan={3}>Capped at the 3 kW amount ({inr(homeSubsidy[homeSubsidy.length - 1]?.total ?? 108000)} in total)</td>
+                <td className="p-4 font-mono">—</td>
+                <td className="p-4 font-mono">—</td>
+              </tr>
             </tbody>
           </table>
         </div>
 
+        <h3 className={`pt-4 text-sm font-black uppercase tracking-widest ${isLight ? 'text-slate-800' : 'text-white'}`}>For shops, warehouses, cold rooms & factories</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[
+            ['No PM Surya Ghar subsidy', 'Commercial and industrial connections are not covered by the residential scheme — pricing is on a custom quotation.'],
+            ['Tax benefit', 'Businesses may claim accelerated depreciation on solar assets under the Income-tax Act. Confirm the rate applicable to you with your CA.'],
+            ['Payback', 'Depends on your load pattern and tariff; typically a few years for daytime-heavy loads. We size it from your last 12 months of bills.'],
+          ].map(([title, body]) => (
+            <div key={title} className={`p-5 rounded-xl border ${isLight ? 'bg-white border-slate-200' : 'bg-stone-950/70 border-white/10'}`}>
+              <div className="text-sm font-black uppercase tracking-tight mb-1">{title}</div>
+              <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-white/70'}`}>{body}</p>
+            </div>
+          ))}
+        </div>
+
         <div className="flex flex-col sm:flex-row items-center justify-between text-[10px] font-mono text-slate-400 px-2 gap-2">
-          <span>* NOTE: FIGURES ARE ILLUSTRATIVE BASED ON MNRE GUIDELINES AND AVERAGE SOLAR IRRADIANCE IN CHHATTISGARH.</span>
-          <span className="text-[#db5319] font-bold">100% SUBSIDY DISBURSAL ASSISTANCE INCLUDED</span>
+          <span>* COSTS, NET COSTS AND SAVINGS ARE ILLUSTRATIVE (CHHATTISGARH IRRADIANCE, TYPICAL TARIFFS). SUBSIDY AMOUNTS ARE THE CURRENT SCHEME RATES.</span>
+          <span className="text-[#db5319] font-bold">SUBSIDY PAPERWORK ASSISTANCE INCLUDED</span>
         </div>
       </section>
 
@@ -394,7 +440,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 Warehouse cold storages, FMCG distribution depots, and corner kiranas are equipped with dependable captive solar arrays. Perishable inventory spoilage during regional grid fluctuations drops to zero.
               </p>
             </div>
-            <div className="text-[10px] font-mono text-[#db5319]">0% Grid Drop Downtime</div>
+            <div className="text-[10px] font-mono text-[#db5319]">Backup-ready with hybrid storage</div>
           </div>
 
           <div className={`p-6 rounded-xl border flex flex-col justify-between space-y-4 ${
@@ -425,10 +471,10 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 3. Flow-Backed Equipment Loans
               </h3>
               <p className={`text-xs leading-relaxed ${isLight ? 'text-slate-600' : 'text-white/70'}`}>
-                Matrics partner banks and NBFCs finance the net solar equipment CapEx with repayment auto-deducted in micro-instalments from verified retail sales volume, requiring zero external land or property collateral.
+                Planned: partner banks and NBFCs could finance solar equipment with repayments linked to verified sales flows. Subject to lender approval, credit assessment and RBI digital-lending norms — not yet available.
               </p>
             </div>
-            <div className="text-[10px] font-mono text-[#db5319]">Cashflow Underwritten</div>
+            <div className="text-[10px] font-mono text-[#db5319]">Coming soon</div>
           </div>
         </div>
       </section>
@@ -472,13 +518,13 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
               </div>
               <div className="space-y-1">
                 <div className="text-[9px] font-mono uppercase text-[#db5319] font-bold">Discom Liaison</div>
-                <div className="text-lg font-black italic">100% Pass</div>
-                <div className="text-[10px] opacity-60">Net-metering clearance rate across state utilities</div>
+                <div className="text-lg font-black italic">End to end</div>
+                <div className="text-[10px] opacity-60">Portal application, feasibility, net-meter and inspection follow-up</div>
               </div>
               <div className="space-y-1">
                 <div className="text-[9px] font-mono uppercase text-[#db5319] font-bold">Component Standard</div>
-                <div className="text-lg font-black italic">Tier-1 MNRE</div>
-                <div className="text-[10px] opacity-60">BIS & IEC certified panels, inverters, and switchgear</div>
+                <div className="text-lg font-black italic">ALMM-listed</div>
+                <div className="text-[10px] opacity-60">MNRE ALMM modules (DCR for subsidy cases), BIS/IEC-certified inverters and switchgear</div>
               </div>
             </div>
           )}
@@ -620,9 +666,23 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 </div>
               </div>
 
+              {/* Honeypot for bots — hidden from people and screen readers */}
+              <input type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)} className="hidden" name="website" />
+
+              <label className={`flex items-start gap-2 text-[11px] leading-snug ${isLight ? 'text-slate-600' : 'text-white/70'}`}>
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-0.5 accent-[#db5319]" />
+                <span>{LEAD_CONSENT_LABEL}</span>
+              </label>
+
+              {surveyError && (
+                <p className="text-xs font-semibold text-red-300 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{surveyError}</p>
+              )}
+
               <div className="pt-2">
                 <button
                   type="submit"
+                  disabled={sending}
                   className={`w-full py-3.5 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-2 shadow-lg ${
                     isOrange
                       ? 'bg-white text-[#d85104] hover:bg-white/95'
@@ -631,7 +691,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                         : 'bg-white text-black hover:bg-slate-100'
                   }`}
                 >
-                  <span>Request Free Rooftop Assessment</span>
+                  <span>{sending ? 'Sending…' : 'Request Free Rooftop Assessment'}</span>
                   <ArrowRight size={14} />
                 </button>
               </div>

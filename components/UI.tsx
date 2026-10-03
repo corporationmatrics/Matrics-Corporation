@@ -31,7 +31,9 @@ import HowItWorks from './HowItWorks';
 import PartnersSolar from './PartnersSolar';
 import InvestorsView from './InvestorsView';
 import Footer from './Footer';
+import AppDownload from './AppDownload';
 import EarlyAccessModal from './EarlyAccessModal';
+import PartnerLoginModal from './PartnerLoginModal';
 import LegalModal from './LegalModal';
 
 interface UIProps {
@@ -58,6 +60,25 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
 
   const [activePillar, setActivePillar] = useState(0);
   const [earlyAccessOpen, setEarlyAccessOpen] = useState(false);
+  const [partnerLoginOpen, setPartnerLoginOpen] = useState(false);
+  const [partnerLoginFailure, setPartnerLoginFailure] = useState<string | null>(null);
+
+  // The app sends a failed sign-in back here with ?partner_login=<reason>.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const reason = params.get('partner_login');
+    if (!reason) return;
+    setPartnerLoginFailure(reason);
+    setPartnerLoginOpen(true);
+    params.delete('partner_login');
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, '', window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash);
+  }, []);
+
+  const openPartnerLogin = () => {
+    setPartnerLoginFailure(null);
+    setPartnerLoginOpen(true);
+  };
   const [legalModal, setLegalModal] = useState<'privacy' | 'terms' | null>(null);
 
   // Demo data signal stream for Node Scan
@@ -277,7 +298,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
             }`}>
               Matrics
             </span>
-            <span className={`text-[10px] font-mono uppercase tracking-[0.3em] font-bold ${
+            <span className={`hidden sm:inline text-[10px] font-mono uppercase tracking-[0.3em] font-bold ${
               isLight ? 'text-slate-500' : 'text-white/60'
             }`}>
               Tarang
@@ -285,7 +306,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
           </button>
 
           {/* Zone 2: 4 Clean Navigation Links */}
-          <nav className="hidden md:flex items-center space-x-8 lg:space-x-10 text-[10px] uppercase font-bold tracking-[0.25em]">
+          <nav className="hidden lg:flex items-center space-x-6 xl:space-x-10 text-[10px] uppercase font-bold tracking-[0.25em]">
             <button 
               onClick={() => setView('ecosystem')} 
               className={`transition-all pb-1 ${
@@ -326,10 +347,27 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
             >
               Investors
             </button>
+            <button 
+              onClick={() => setView('app')} 
+              className={`transition-all pb-1 ${
+                view === 'app' 
+                  ? 'text-[#db5319] border-b-2 border-[#db5319]' 
+                  : isLight ? 'text-slate-600 hover:text-slate-900' : 'text-white/70 hover:text-white'
+              }`}
+            >
+              App
+            </button>
           </nav>
 
           {/* Zone 3: Actions (Theme switcher + GET EARLY ACCESS button) */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            {/* Staff & channel-partner login (case-management app) */}
+            <button
+              onClick={openPartnerLogin}
+              className={`hidden lg:inline whitespace-nowrap text-[10px] uppercase tracking-[0.2em] font-bold ${isLight ? 'text-slate-600 hover:text-slate-900' : 'text-white/70 hover:text-white'}`}
+            >
+              Partner login
+            </button>
             {setTheme && (
               <div className={`flex items-center p-1 rounded-full border ${
                 isLight 
@@ -348,7 +386,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
                   }`}
                 >
                   <Sparkles size={10} className={isOrange ? 'text-[#d85104]' : 'text-amber-300'} />
-                  <span>Studio</span>
+                  <span className="hidden sm:inline">Studio</span>
                 </button>
                 <button
                   onClick={() => setTheme('light')}
@@ -360,7 +398,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
                   }`}
                 >
                   <Sun size={10} className={isLight ? 'text-amber-400' : ''} />
-                  <span>Light</span>
+                  <span className="hidden sm:inline">Light</span>
                 </button>
                 <button
                   onClick={() => setTheme('dark')}
@@ -372,7 +410,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
                   }`}
                 >
                   <Moon size={10} className={isDark ? 'text-amber-400' : ''} />
-                  <span>Dark</span>
+                  <span className="hidden sm:inline">Dark</span>
                 </button>
               </div>
             )}
@@ -394,7 +432,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
         </div>
 
         {/* Mobile Navigation Bar */}
-        <div className="flex md:hidden items-center justify-around py-2 border-t border-white/10 text-[9px] uppercase font-bold tracking-widest">
+        <div className="flex lg:hidden items-center justify-around py-2 border-t border-white/10 text-[9px] uppercase font-bold tracking-widest">
           <button 
             onClick={() => setView('ecosystem')} 
             className={view === 'ecosystem' ? 'text-[#db5319]' : isLight ? 'text-slate-600' : 'text-white/70'}
@@ -419,6 +457,13 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
           >
             Investors
           </button>
+          <button 
+            onClick={() => setView('app')} 
+            className={view === 'app' ? 'text-[#db5319]' : isLight ? 'text-slate-600' : 'text-white/70'}
+          >
+            App
+          </button>
+          <button onClick={openPartnerLogin} className={isLight ? 'text-slate-600' : 'text-white/70'}>Partner login</button>
         </div>
       </header>
 
@@ -433,22 +478,22 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
         {view === 'landing' && (
           <div className="w-full flex flex-col pointer-events-none">
             {/* HERO SECTION */}
-            <section className="min-h-[85vh] flex items-center justify-center lg:justify-end px-4 sm:px-8 lg:px-24 py-12">
-              <div className="max-w-3xl space-y-6 sm:space-y-8 text-center lg:text-right flex flex-col items-center lg:items-end z-20 pointer-events-auto">
+            <section className="min-h-[85vh] flex items-end xl:items-center justify-center xl:justify-end px-4 sm:px-8 xl:px-24 pt-[44vh] pb-12 xl:py-12">
+              <div className="w-full max-w-3xl space-y-6 sm:space-y-8 text-center xl:text-right flex flex-col items-center xl:items-end z-20 pointer-events-auto">
                 
                 {/* Title */}
-                <h1 className="font-black tracking-tighter leading-[0.95] italic uppercase flex flex-col items-center lg:items-end">
-                  <span className={`text-2xl sm:text-3xl lg:text-[2.2vw] ${
+                <h1 className="font-black tracking-tighter leading-[0.95] italic uppercase flex flex-col items-center xl:items-end">
+                  <span className={`text-2xl sm:text-3xl xl:text-[2.2vw] ${
                     isLight ? 'text-slate-900' : 'text-white font-semibold'
                   }`}>
                     Recoding The DNA Of
                   </span>
-                  <span className={`text-3xl sm:text-4xl lg:text-[3vw] ${
+                  <span className={`text-3xl sm:text-4xl xl:text-[3vw] ${
                     isLight ? 'text-slate-400 font-bold' : isOrange ? 'text-white/85' : 'text-white/40'
                   }`}>
                     Global Commerce
                   </span>
-                  <span className={`text-5xl sm:text-6xl lg:text-[4.5vw] whitespace-nowrap mt-1 ${
+                  <span className={`text-[2.6rem] sm:text-6xl xl:text-[4.5vw] sm:whitespace-nowrap mt-1 ${
                     isOrange 
                       ? 'text-white drop-shadow-[0_4px_25px_rgba(0,0,0,0.3)]' 
                       : 'text-[#db5319]'
@@ -494,6 +539,16 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
                     }`}
                   >
                     Discover Ecosystem
+                  </button>
+                  <button 
+                    onClick={() => setView('app')} 
+                    className={`px-8 lg:px-10 py-4 font-black uppercase tracking-[0.25em] text-xs transition-all shadow-xl hover:scale-105 active:scale-95 border ${
+                      isOrange
+                        ? 'border-white/60 text-white hover:bg-white/10'
+                        : 'border-[#db5319] text-[#db5319] hover:bg-[#db5319]/10'
+                    }`}
+                  >
+                    Get the app
                   </button>
                 </div>
               </div>
@@ -943,6 +998,7 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
           <PartnersSolar 
             theme={theme} 
             onOpenEarlyAccess={() => setEarlyAccessOpen(true)} 
+            onOpenPartnerLogin={openPartnerLogin}
           />
         )}
 
@@ -953,6 +1009,11 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
           <InvestorsView 
             theme={theme} 
           />
+        )}
+
+        {/* VIEW 6: THE APP (download page for shops and reviewers) */}
+        {view === 'app' && (
+          <AppDownload theme={theme} />
         )}
 
       </main>
@@ -972,6 +1033,14 @@ const UI: React.FC<UIProps> = ({ view, setView, theme = 'orange', setTheme }) =>
         isOpen={earlyAccessOpen}
         onClose={() => setEarlyAccessOpen(false)}
         theme={theme}
+      />
+
+      {/* Tarang Solar workspace sign-in (posts to the app's /login/gateway) */}
+      <PartnerLoginModal
+        isOpen={partnerLoginOpen}
+        onClose={() => setPartnerLoginOpen(false)}
+        theme={theme}
+        failure={partnerLoginFailure}
       />
 
       {/* Privacy Policy / Terms Modal (Item 8) */}

@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+/* Scan the app's sources (they live at the repo root, not in src/). */
+@source "./";
+
+/*
+ * Tailwind v4 compatibility with the previous Play-CDN (v3) look:
+ * v3 defaulted borders to gray-200 and gave buttons a pointer cursor.
+ */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}

@@ -8,7 +8,7 @@ import Tablet from './Tablet';
 
 interface ExperienceProps {
   mousePos: { x: number; y: number };
-  currentView: 'landing' | 'ecosystem' | 'network' | 'partners' | 'investors' | 'quantum';
+  currentView: 'landing' | 'ecosystem' | 'network' | 'partners' | 'investors' | 'quantum' | 'app';
   theme?: 'orange' | 'light' | 'dark';
 }
 
@@ -17,6 +17,10 @@ const Experience: React.FC<ExperienceProps> = ({ mousePos, currentView, theme = 
   const globeRotationRef = useRef<THREE.Group>(null);
   const { camera, size } = useThree();
   const isMobile = size.width < 768;
+  // Below 1280px the landing hero text sits centred under the globe, so the
+  // camera tilts down to lift the globe into the top half of the screen
+  // (phone ≈ 22–38% of height, laptop ≈ 15–44%; text starts ≈ 55%).
+  const isCompact = size.width < 1280;
   const isLight = theme === 'light';
   const isOrange = theme === 'orange';
 
@@ -49,12 +53,12 @@ const Experience: React.FC<ExperienceProps> = ({ mousePos, currentView, theme = 
       targetZ = isMobile ? 11 : 8.2;
       lookAtY = isMobile ? 0.6 : 0.1;
     } else {
-      const radius = isMobile ? 14 : 11;
+      const radius = isMobile ? 15 : isCompact ? 13 : 11;
       const angle = t * 0.1;
       targetX = Math.sin(angle) * radius;
       targetY = isMobile ? 2 : 1.5;
       targetZ = Math.cos(angle) * radius;
-      lookAtY = isMobile ? 1 : 0;
+      lookAtY = isMobile ? -2.6 : isCompact ? -2.2 : 0;
     }
 
     camera.position.x = THREE.MathUtils.lerp(camera.position.x, targetX, 0.05);

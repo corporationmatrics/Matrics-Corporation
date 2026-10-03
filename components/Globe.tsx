@@ -10,7 +10,7 @@ interface GlobeProps {
 }
 
 const Globe: React.FC<GlobeProps> = ({ theme = 'orange' }) => {
-  const landMask = useTexture('https://raw.githubusercontent.com/mrdoob/three.js/master/examples/textures/planets/earth_atmos_2048.jpg');
+  const landMask = useTexture('/textures/earth_atmos_2048.jpg') // self-hosted copy of the three.js example texture (MIT);
   const landRef = useRef<THREE.MeshStandardMaterial>(null);
 
   const isLight = theme === 'light';
