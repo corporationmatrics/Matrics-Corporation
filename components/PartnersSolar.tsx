@@ -22,6 +22,7 @@ import {
   Clock
 } from 'lucide-react';
 import type { AppTheme } from '../App';
+import { submitLead, LEAD_CONSENT_TEXT } from '../lib/leads';
 
 interface PartnersSolarProps {
   theme?: AppTheme;
@@ -41,6 +42,9 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
     propertyType: 'Commercial Kirana / Warehouse',
   });
   const [surveySubmitted, setSurveySubmitted] = useState(false);
+  const [surveyConsent, setSurveyConsent] = useState(false);
+  const [surveySending, setSurveySending] = useState(false);
+  const [surveyError, setSurveyError] = useState('');
 
   const solarJourney = [
     {
@@ -84,24 +88,24 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
     {
       capacity: '1 kW System',
       cost: '₹65,000 – ₹75,000',
-      subsidy: '₹30,000',
-      effectiveCost: '₹35,000 – ₹45,000',
+      subsidy: '₹45,000 (₹30k Central + ₹15k CG)',
+      effectiveCost: '₹20,000 – ₹30,000',
       units: '~120 – 150 kWh',
       savings: '₹900 – ₹1,200 / mo',
     },
     {
       capacity: '2 kW System',
       cost: '₹1,25,000 – ₹1,40,000',
-      subsidy: '₹60,000',
-      effectiveCost: '₹65,000 – ₹80,000',
+      subsidy: '₹90,000 (₹60k Central + ₹30k CG)',
+      effectiveCost: '₹35,000 – ₹50,000',
       units: '~240 – 300 kWh',
       savings: '₹1,800 – ₹2,400 / mo',
     },
     {
       capacity: '3 kW System (Most Popular)',
       cost: '₹1,80,000 – ₹2,05,000',
-      subsidy: '₹78,000 (Max Central)',
-      effectiveCost: '₹1,02,000 – ₹1,27,000',
+      subsidy: '₹1,08,000 (₹78k Central + ₹30k CG)',
+      effectiveCost: '₹72,000 – ₹97,000',
       units: '~360 – 450 kWh',
       savings: '₹2,800 – ₹3,600 / mo',
     },
@@ -115,10 +119,38 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
     },
   ];
 
-  const handleSurveySubmit = (e: React.FormEvent) => {
+  const handleSurveySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (surveySending) return;
     if (!surveyData.name.trim() || !surveyData.phone.trim()) return;
-    setSurveySubmitted(true);
+    if (surveyData.phone.replace(/\D/g, '').length !== 10) {
+      setSurveyError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    if (!surveyConsent) {
+      setSurveyError('Please tick the consent box so we can contact you.');
+      return;
+    }
+    setSurveyError('');
+    setSurveySending(true);
+    try {
+      await submitLead({
+        kind: 'SOLAR_AUDIT',
+        name: surveyData.name.trim(),
+        phone: surveyData.phone,
+        consentText: LEAD_CONSENT_TEXT,
+        segment: surveyData.propertyType === 'Residential Rooftop' ? 'HOME' : 'BUSINESS',
+        town: surveyData.town.trim(),
+        billRange: surveyData.billRange,
+        propertyType: surveyData.propertyType,
+        source: 'website:tarang-solar',
+      });
+      setSurveySubmitted(true);
+    } catch (err) {
+      setSurveyError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setSurveySending(false);
+    }
   };
 
   return (
@@ -313,7 +345,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
           <p className={`text-xs sm:text-sm max-w-xl mx-auto ${
             isLight ? 'text-slate-500' : 'text-white/60'
           }`}>
-            Central financial assistance under PM Surya Ghar: Muft Bijli Yojana & commercial incentives.
+            Central financial assistance under PM Surya Ghar: Muft Bijli Yojana plus the Chhattisgarh state top-up paid through CSPDCL (residential only).
           </p>
         </div>
 
@@ -327,7 +359,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
               }`}>
                 <th className="p-4">System Tier</th>
                 <th className="p-4">Benchmark Cost</th>
-                <th className="p-4 text-[#db5319]">Central Subsidy</th>
+                <th className="p-4 text-[#db5319]">Subsidy (Central + CG State)</th>
                 <th className="p-4">Net Customer Cost</th>
                 <th className="p-4">Est. Generation</th>
                 <th className="p-4">Monthly Savings</th>
@@ -514,7 +546,11 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 Thank you, <span className="font-bold">{surveyData.name}</span>. An engineer from Tarang Solar will contact you at <span className="font-mono">{surveyData.phone}</span> within 24 hours to confirm your site inspection in <span className="font-bold">{surveyData.town}</span>.
               </p>
               <button
-                onClick={() => setSurveySubmitted(false)}
+                onClick={() => {
+                  setSurveySubmitted(false);
+                  setSurveyConsent(false);
+                  setSurveyData({ ...surveyData, name: '', phone: '' });
+                }}
                 className="mt-3 px-6 py-2 rounded-lg text-xs font-black uppercase tracking-wider bg-white text-black"
               >
                 Submit Another Request
@@ -620,10 +656,27 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                 </div>
               </div>
 
+              <label className={`flex items-start gap-2.5 text-[11px] leading-relaxed cursor-pointer ${isLight ? 'text-slate-600' : 'text-white/70'}`}>
+                <input
+                  type="checkbox"
+                  checked={surveyConsent}
+                  onChange={(e) => setSurveyConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#db5319]"
+                />
+                <span>{LEAD_CONSENT_TEXT}</span>
+              </label>
+
+              {surveyError && (
+                <div role="alert" className="text-xs font-semibold text-red-500 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  {surveyError}
+                </div>
+              )}
+
               <div className="pt-2">
                 <button
                   type="submit"
-                  className={`w-full py-3.5 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-2 shadow-lg ${
+                  disabled={surveySending}
+                  className={`w-full py-3.5 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center space-x-2 shadow-lg disabled:opacity-60 disabled:cursor-wait ${
                     isOrange
                       ? 'bg-white text-[#d85104] hover:bg-white/95'
                       : isLight
@@ -631,7 +684,7 @@ const PartnersSolar: React.FC<PartnersSolarProps> = ({ theme = 'orange', onOpenE
                         : 'bg-white text-black hover:bg-slate-100'
                   }`}
                 >
-                  <span>Request Free Rooftop Assessment</span>
+                  <span>{surveySending ? 'Sending…' : 'Request Free Rooftop Assessment'}</span>
                   <ArrowRight size={14} />
                 </button>
               </div>
